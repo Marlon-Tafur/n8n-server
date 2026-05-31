@@ -16,12 +16,43 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.headers['x-ai-token'] }}",
+              "rightValue": "={{ $env.AI_CREATOR_TOKEN }}",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Validate Token",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [500, 300],
+      "id": "node-validate-token"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'Unauthorized' }) }}",
+        "options": { "responseCode": 403 }
+      },
+      "name": "Reject Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [750, 480],
+      "id": "node-reject"
+    },
+    {
+      "parameters": {
         "jsCode": "const systemPrompt = `Eres un arquitecto experto en n8n que convierte instrucciones en lenguaje natural en workflows JSON compatibles con n8n.\\n\\nReglas:\\n1. Responde ÚNICAMENTE con JSON válido. Sin explicaciones, sin bloques de código.\\n2. Usa solo nodos oficiales de n8n-nodes-base.\\n3. NUNCA uses: executeCommand, readWriteFile, localFileTrigger.\\n4. NUNCA incluyas credenciales reales.\\n5. active: false siempre.\\n6. Estructura: { name, nodes, connections, active: false, settings: { executionOrder: \\\"v1\\\" } }\\n7. Primer nodo (trigger) en position [250, 300]. Cada siguiente: X += 250.\\n8. Si faltan credenciales, agrega un Sticky Note con warnings.`;\n\nconst body = $input.first().json.body || $input.first().json;\nreturn [{ json: { systemPrompt, userPrompt: body.description, model: body.model || 'ollama' } }];"
       },
       "name": "Prepare Prompts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [500, 300],
+      "position": [750, 300],
       "id": "node-prepare"
     },
     {
@@ -40,7 +71,7 @@
       "name": "Route by Model",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [750, 300],
+      "position": [1000, 300],
       "id": "node-route"
     },
     {
@@ -55,7 +86,7 @@
       "name": "Call Ollama",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1000, 200],
+      "position": [1250, 200],
       "id": "node-ollama"
     },
     {
@@ -78,7 +109,7 @@
       "name": "Call Claude",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1000, 400],
+      "position": [1250, 400],
       "id": "node-claude"
     },
     {
@@ -88,7 +119,7 @@
       "name": "Parse and Validate",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1250, 300],
+      "position": [1500, 300],
       "id": "node-parse"
     },
     {
@@ -107,7 +138,7 @@
       "name": "Valid?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1500, 300],
+      "position": [1750, 300],
       "id": "node-valid"
     },
     {
@@ -129,7 +160,7 @@
       "name": "Create in n8n",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1750, 200],
+      "position": [2000, 200],
       "id": "node-create"
     },
     {
@@ -140,7 +171,7 @@
       "name": "Success Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2000, 200],
+      "position": [2250, 200],
       "id": "node-success"
     },
     {
@@ -152,7 +183,7 @@
       "name": "Error Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2000, 400],
+      "position": [2250, 400],
       "id": "node-error"
     },
     {
@@ -164,13 +195,19 @@
       "name": "Setup Instructions",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [1650, 50],
+      "position": [1900, 50],
       "id": "node-note"
     }
   ],
   "connections": {
     "Webhook": {
-      "main": [[{ "node": "Prepare Prompts", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Validate Token", "type": "main", "index": 0 }]]
+    },
+    "Validate Token": {
+      "main": [
+        [{ "node": "Prepare Prompts", "type": "main", "index": 0 }],
+        [{ "node": "Reject Unauthorized", "type": "main", "index": 0 }]
+      ]
     },
     "Prepare Prompts": {
       "main": [[{ "node": "Route by Model", "type": "main", "index": 0 }]]
