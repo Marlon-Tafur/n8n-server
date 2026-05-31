@@ -13,6 +13,14 @@
 
 name: ${PROJECT_NAME:-n8n-server}
 
+# DNS explícito — evita flakiness del resolver embebido de Docker Desktop / WSL2.
+# El resolver 127.0.0.11 reenvía a Windows via bridge (192.168.65.7), path inestable.
+# Con estos servidores los contenedores resuelven directamente via la red public.
+x-dns: &dns-public
+  dns:
+    - 1.1.1.1
+    - 8.8.8.8
+
 services:
 
   # --- Base de Datos ---
@@ -39,6 +47,7 @@ services:
 
   # --- n8n (Motor de Workflows) ---
   n8n:
+    <<: *dns-public
     image: ${N8N_IMAGE:-n8nio/n8n:latest}
     container_name: n8n-app
     restart: unless-stopped
@@ -96,6 +105,9 @@ services:
       N8N_VERSION_NOTIFICATIONS_ENABLED: ${N8N_VERSION_NOTIFICATIONS_ENABLED:-true}
       N8N_TEMPLATES_ENABLED: ${N8N_TEMPLATES_ENABLED:-true}
       N8N_PUBLIC_API_DISABLED: ${N8N_PUBLIC_API_DISABLED:-false}
+
+      # AI Workflow Creator
+      AI_CREATOR_TOKEN: ${AI_CREATOR_TOKEN}
 
       # Métricas
       N8N_METRICS: ${N8N_METRICS:-true}
