@@ -1,0 +1,29 @@
+# Secretos — NUNCA commitear
+.env
+secrets/*
+!secrets/.gitkeep
+
+# Datos persistentes
+backups/*
+!backups/.gitkeep
+files/*
+!files/.gitkeep
+
+# Logs
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code internal
+.atl/
+
+#archivos json
+🤖 AI Workflow Creator.json
+n8n-plan-definitivo.md
+CLAUDE.md

@@ -1,0 +1,205 @@
+{
+  "name": "🤖 AI Workflow Creator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-workflow",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "id": "node-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const systemPrompt = `Eres un arquitecto experto en n8n que convierte instrucciones en lenguaje natural en workflows JSON compatibles con n8n.\\n\\nReglas:\\n1. Responde ÚNICAMENTE con JSON válido. Sin explicaciones, sin bloques de código.\\n2. Usa solo nodos oficiales de n8n-nodes-base.\\n3. NUNCA uses: executeCommand, readWriteFile, localFileTrigger.\\n4. NUNCA incluyas credenciales reales.\\n5. active: false siempre.\\n6. Estructura: { name, nodes, connections, active: false, settings: { executionOrder: \\\"v1\\\" } }\\n7. Primer nodo (trigger) en position [250, 300]. Cada siguiente: X += 250.\\n8. Si faltan credenciales, agrega un Sticky Note con warnings.`;\n\nconst body = $input.first().json.body || $input.first().json;\nreturn [{ json: { systemPrompt, userPrompt: body.description, model: body.model || 'ollama' } }];"
+      },
+      "name": "Prepare Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300],
+      "id": "node-prepare"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.model }}",
+              "rightValue": "ollama",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Route by Model",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [750, 300],
+      "id": "node-route"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'llama3.1:8b', messages: [{ role: 'system', content: $json.systemPrompt }, { role: 'user', content: $json.userPrompt }], stream: false }) }}",
+        "options": {}
+      },
+      "name": "Call Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 200],
+      "id": "node-ollama"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "=ANTHROPIC_API_KEY_CONFIGURAR" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8192, system: $json.systemPrompt, messages: [{ role: 'user', content: $json.userPrompt }] }) }}",
+        "options": {}
+      },
+      "name": "Call Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 400],
+      "id": "node-claude"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nlet raw;\n\n// Ollama format\nif (item.message?.content) raw = item.message.content;\n// Claude format\nelse if (item.content?.[0]?.text) raw = item.content[0].text;\n// OpenAI format\nelse if (item.choices?.[0]?.message?.content) raw = item.choices[0].message.content;\nelse throw new Error('Formato de respuesta no reconocido: ' + JSON.stringify(Object.keys(item)));\n\n// Limpiar markdown fences si el modelo los incluyó igual\nraw = raw.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n\ntry {\n  const workflow = JSON.parse(raw);\n  // Forzar seguridad — nunca activar automáticamente\n  workflow.active = false;\n  return [{ json: { workflow, valid: true } }];\n} catch (e) {\n  return [{ json: { error: 'JSON inválido: ' + e.message, raw: raw.substring(0, 500), valid: false } }];\n}"
+      },
+      "name": "Parse and Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "id": "node-parse"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1500, 300],
+      "id": "node-valid"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://n8n:5678/api/v1/workflows",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-API-KEY", "value": "=CONFIGURAR_CON_API_KEY_DE_N8N" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.workflow) }}",
+        "options": {}
+      },
+      "name": "Create in n8n",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1750, 200],
+      "id": "node-create"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, workflow_id: $json.id, name: $json.name, active: false, message: 'Workflow creado como INACTIVO. Revisalo y activalo manualmente en el editor.' }) }}"
+      },
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2000, 200],
+      "id": "node-success"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.error, raw: $json.raw }) }}",
+        "options": { "responseCode": 400 }
+      },
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2000, 400],
+      "id": "node-error"
+    },
+    {
+      "parameters": {
+        "content": "## ⚠️ Configurar antes de activar\n\n**X-N8N-API-KEY**: reemplazar con el valor de `secrets/n8n_api_key.txt`\n\n**Para Claude**: reemplazar ANTHROPIC_API_KEY_CONFIGURAR con tu API key de Anthropic\n\n**Para Ollama**: asegurarse de que el profile `ai` esté activo (`make up-ai`)",
+        "height": 180,
+        "width": 400
+      },
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1650, 50],
+      "id": "node-note"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Prepare Prompts", "type": "main", "index": 0 }]]
+    },
+    "Prepare Prompts": {
+      "main": [[{ "node": "Route by Model", "type": "main", "index": 0 }]]
+    },
+    "Route by Model": {
+      "main": [
+        [{ "node": "Call Ollama", "type": "main", "index": 0 }],
+        [{ "node": "Call Claude", "type": "main", "index": 0 }]
+      ]
+    },
+    "Call Ollama": {
+      "main": [[{ "node": "Parse and Validate", "type": "main", "index": 0 }]]
+    },
+    "Call Claude": {
+      "main": [[{ "node": "Parse and Validate", "type": "main", "index": 0 }]]
+    },
+    "Parse and Validate": {
+      "main": [[{ "node": "Valid?", "type": "main", "index": 0 }]]
+    },
+    "Valid?": {
+      "main": [
+        [{ "node": "Create in n8n", "type": "main", "index": 0 }],
+        [{ "node": "Error Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create in n8n": {
+      "main": [[{ "node": "Success Response", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}

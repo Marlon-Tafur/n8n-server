@@ -1,0 +1,53 @@
+# ============================================================
+# Caddy — Reverse Proxy para n8n
+# ============================================================
+# Caddy escucha en :80 dentro del container.
+# En laptop: Cloudflare Tunnel maneja SSL externamente.
+# En VPS: Descomentar las líneas de SSL directo.
+# ============================================================
+
+:80 {
+    # --- Reverse proxy a n8n ---
+    reverse_proxy n8n:5678 {
+        # WebSocket support (editor de n8n lo requiere)
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-Host {host}
+        header_up X-Real-IP {remote_host}
+
+        # Flush para SSE (Server-Sent Events, usado por n8n)
+        flush_interval -1
+    }
+
+    # --- Headers de seguridad ---
+    header {
+        # Previene clickjacking
+        X-Frame-Options "SAMEORIGIN"
+
+        # Previene MIME type sniffing
+        X-Content-Type-Options "nosniff"
+
+        # XSS Protection
+        X-XSS-Protection "1; mode=block"
+
+        # Referrer Policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+
+        # Permisos de navegador (deshabilita features innecesarias)
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+
+        # No revelar tecnología del servidor
+        -Server
+    }
+
+    # --- Health check (usado por el tunnel y monitoreo) ---
+    handle /caddy-health {
+        respond "OK" 200
+    }
+
+    # --- Logs ---
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+}

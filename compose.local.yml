@@ -1,0 +1,36 @@
+# ============================================================
+# Override: Modo Laptop (Cloudflare Tunnel)
+# ============================================================
+# Uso: docker compose -f compose.yml -f compose.local.yml up -d
+# ============================================================
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: n8n-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - public
+    depends_on:
+      caddy:
+        condition: service_started
+
+  # En desarrollo, acceso local directo para debugging.
+  n8n:
+    environment:
+      N8N_LOG_LEVEL: debug
+    ports:
+      - "127.0.0.1:5678:5678"
+
+  # Caddy escucha en :80 internamente, tunnel le envía tráfico.
+  caddy:
+    ports:
+      - "127.0.0.1:8080:80"
+
+  # En desarrollo, acceso directo a la DB para inspección.
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"

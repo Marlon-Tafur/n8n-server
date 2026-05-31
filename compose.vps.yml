@@ -1,0 +1,37 @@
+# ============================================================
+# Override: Modo VPS (Caddy con SSL directo o Cloudflare Tunnel)
+# ============================================================
+# Uso: docker compose -f compose.yml -f compose.vps.yml up -d
+#
+# Opción A: Caddy con SSL directo (puertos 80/443 abiertos)
+# Opción B: Caddy detrás de Cloudflare Tunnel (zero ports)
+#           → Agrega también compose.local.yml
+# ============================================================
+
+services:
+  n8n:
+    environment:
+      N8N_LOG_LEVEL: warn
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  caddy:
+    # Opción A: SSL directo. Descomentar si NO usas Cloudflare Tunnel.
+    # ports:
+    #   - "80:80"
+    #   - "443:443"
+    # Opción B: Detrás de Cloudflare Tunnel.
+    ports:
+      - "127.0.0.1:8080:80"
+
+  postgres:
+    # En producción NUNCA exponer la DB.
+    # (Sin sección "ports", PostgreSQL es invisible)
+    deploy:
+      resources:
+        limits:
+          memory: 512M

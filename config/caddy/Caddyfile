@@ -1,0 +1,56 @@
+﻿:80 {
+    # Health check
+    handle /caddy-health {
+        respond "OK" 200
+    }
+
+    # Editor de n8n: solo por n8n.marlonai.net.pe
+    @editor host n8n.marlonai.net.pe
+    handle @editor {
+        reverse_proxy n8n:5678 {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+            header_up X-Real-IP {remote_host}
+            flush_interval -1
+        }
+    }
+
+    # Webhooks públicos: solo rutas necesarias
+    @hooks_allowed {
+        host hooks.marlonai.net.pe
+        path /webhook* /webhook-test* /webhook-waiting* /form* /form-test*
+    }
+
+    handle @hooks_allowed {
+        reverse_proxy n8n:5678 {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+            header_up X-Real-IP {remote_host}
+            flush_interval -1
+        }
+    }
+
+    # Cualquier otra ruta en hooks devuelve 404
+    @hooks_blocked host hooks.marlonai.net.pe
+    handle @hooks_blocked {
+        respond "Not found" 404
+    }
+
+    # Cualquier otro host/ruta también 404
+    respond "Not found" 404
+
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+        -Server
+    }
+
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+}

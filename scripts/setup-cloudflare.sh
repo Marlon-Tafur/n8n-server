@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# ============================================================
+# Guía interactiva: Cloudflare Tunnel + Access
+# ============================================================
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "${PROJECT_DIR}/.env" 2>/dev/null || true
+
+echo ""
+echo "🌐 Setup de Cloudflare Tunnel + Access"
+echo "========================================"
+echo ""
+echo "PARTE 1 — Crear el Tunnel"
+echo ""
+echo "  1. Ve a https://one.dash.cloudflare.com/"
+echo ""
+echo "  2. Menú lateral → Networks → Tunnels → Create a tunnel"
+echo ""
+echo "  3. Selecciona 'Cloudflared' como conector"
+echo ""
+echo "  4. Nombre del tunnel: 'n8n-server'"
+echo ""
+echo "  5. En la pantalla del conector, selecciona 'Docker'"
+echo "     y copia SOLO el token (la cadena larga después de --token)"
+echo ""
+echo "  6. En 'Public Hostnames', agrega DOS entradas:"
+echo ""
+echo "     Entrada 1 (Editor):"
+echo "       Subdomain: n8n"
+echo "       Domain:    tudominio.com"
+echo "       Type:      HTTP"
+echo "       URL:       caddy:80"
+echo ""
+echo "     Entrada 2 (Webhooks):"
+echo "       Subdomain: hooks"
+echo "       Domain:    tudominio.com"
+echo "       Type:      HTTP"
+echo "       URL:       caddy:80"
+echo ""
+echo "  ⚠️  La URL debe ser 'caddy:80' (nombre del servicio Docker)"
+echo "  ⚠️  NO uses 'localhost' ni '127.0.0.1' — cloudflared y caddy"
+echo "      están en la misma red Docker y se resuelven por nombre."
+echo ""
+echo "========================================"
+echo ""
+echo "PARTE 2 — Proteger el Editor con Cloudflare Access"
+echo ""
+echo "  1. En Zero Trust Dashboard → Access → Applications"
+echo ""
+echo "  2. Add an Application → Self-hosted"
+echo ""
+echo "  3. Application domain: n8n.tudominio.com"
+echo ""
+echo "  4. Policy: Allow → Include → Emails"
+echo "     Agrega tu email personal"
+echo ""
+echo "  5. NO protejas hooks.tudominio.com — los webhooks"
+echo "     necesitan ser accesibles por Stripe, WhatsApp, etc."
+echo ""
+echo "  6. Habilitá MFA en: Settings → Authentication"
+echo ""
+echo "========================================"
+echo ""
+echo "PARTE 3 — Configuración Cloudflare adicional (Dashboard)"
+echo ""
+echo "  SSL/TLS → Overview → Mode: Full (strict)"
+echo "  Security → WAF → Managed Rules → Enable"
+echo "  Security → Bots → Bot Fight Mode → Enable"
+echo ""
+echo "========================================"
+echo ""
+read -rp "¿Ya tenés el token del tunnel? Pegalo aquí (Enter para saltar): " TOKEN
+
+if [ -n "$TOKEN" ]; then
+    if [ -f "${PROJECT_DIR}/.env" ]; then
+        if grep -q "CLOUDFLARE_TUNNEL_TOKEN=" "${PROJECT_DIR}/.env"; then
+            sed -i.bak "s|CLOUDFLARE_TUNNEL_TOKEN=.*|CLOUDFLARE_TUNNEL_TOKEN=${TOKEN}|" "${PROJECT_DIR}/.env"
+            rm -f "${PROJECT_DIR}/.env.bak"
+            echo ""
+            echo "✅ Token guardado en .env"
+        else
+            echo "CLOUDFLARE_TUNNEL_TOKEN=${TOKEN}" >> "${PROJECT_DIR}/.env"
+            echo ""
+            echo "✅ Token agregado a .env"
+        fi
+        echo ""
+        echo "Siguiente paso: make up"
+    else
+        echo ""
+        echo "⚠️  .env no existe. Ejecutá 'make setup' primero, luego pegá el token en .env:"
+        echo "   CLOUDFLARE_TUNNEL_TOKEN=${TOKEN}"
+    fi
+else
+    echo ""
+    echo "Podés agregar el token más tarde editando .env:"
+    echo "   CLOUDFLARE_TUNNEL_TOKEN=tu-token-aqui"
+    echo ""
+    echo "O volvé a ejecutar este script cuando lo tengas."
+fi
+echo ""

@@ -1,0 +1,41 @@
+# ============================================================
+# Override: IA Local (Ollama + Qdrant)
+# ============================================================
+# Uso: docker compose -f compose.yml -f compose.local.yml \
+#        -f compose.ai.yml --profile ai up -d
+#
+# Después de levantar, descargar un modelo:
+#   docker exec -it n8n-ollama ollama pull llama3.1:8b
+# ============================================================
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: n8n-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - internal
+    profiles:
+      - ai
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: n8n-qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - internal
+    profiles:
+      - ai
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  ollama_data:
+  qdrant_data:
